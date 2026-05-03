@@ -4,7 +4,6 @@
 set -euo pipefail
 
 # 1. Détection dynamique de l'utilisateur
-# Si lancé avec sudo, on prend l'utilisateur d'origine. Sinon, l'utilisateur courant.
 USER_TARGET="${SUDO_USER:-$USER}"
 
 # 2. Récupération dynamique du répertoire personnel et du groupe
@@ -33,7 +32,7 @@ echo "Démarrage du nettoyage pour l'utilisateur $USER_TARGET dans $HOME_DIR..."
 
 # Parcourir uniquement les éléments visibles (non cachés) à la racine du Home.
 for item in "$HOME_DIR"/*; do
-    # Sécurité si le dossier est totalement vide (évite de traiter la string littérale "*")
+    # Sécurité si le dossier est totalement vide ou inaccessible (ex: montages FUSE xrdp)
     [ -e "$item" ] || continue
 
     BASENAME=$(basename "$item")
@@ -56,8 +55,10 @@ for item in "$HOME_DIR"/*; do
     fi
 done
 
-# Réparer les permissions dynamiquement avec le bon utilisateur et son groupe principal
-chown -R "$USER_TARGET":"$USER_GROUP" "$HOME_DIR"
+# Réparer les permissions dynamiquement avec le bon utilisateur et son groupe principal.
+# L'ajout de 2>/dev/null et || true empêche le script de planter sur les montages FUSE (comme thinclient_drives)
+echo "Restauration des permissions (les erreurs sur les montages virtuels seront ignorées)..."
+chown -R "$USER_TARGET":"$USER_GROUP" "$HOME_DIR" 2>/dev/null || true
 
 echo "Nettoyage terminé avec succès."
 
@@ -80,4 +81,4 @@ cd k8s-install
 
 # Lancement du script d'installation
 echo "Lancement de install.sh..."
-./install.sh
+sudo -u "$USER_TARGET" ./install.sh
